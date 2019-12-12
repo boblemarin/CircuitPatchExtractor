@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<body>
+<head>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta charset="utf-8">
+<title>Circuit Patch Extractor</title>
+<meta name="description" content="">
+<meta name="author" content="boblemarin">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html { box-sizing: border-box; }
+  *, *:before, *:after { box-sizing: inherit; }
+
+  html, body {
+    min-height: 100%;
+  }
+
+  #drop-target {
+    margin: auto;
+    max-width: 500px;
+    border: 1px solid #888;
+    border-radius: 5px;
+    background-color: #CCC;
+    text-align: center;
+    padding: 3em;
+    cursor: pointer;
+  }
+
+  #drop-target:hover {
+    background-color: #EEE;
+  }
+
+  ol#preset-list {
+    columns: 2;
+  }
+
+  #preset-list li {
+    cursor: pointer;
+  }
+  #preset-list li:hover {
+    background-color: #CCC;
+  }
+</style>
+</head>
+<body>
+  <div id="drop-target">
+    <label for="files">Drag a syx file<br>
+    or click here to select one</label>
+    <input type="file" id="files" name="files[]" style="display:none;"/>
+  </div>
+
+  <ol id="preset-list">
+
+  </ol>
+
+<script>
+
+  // =======================================
+  // FILE INPUT SELECTION
+  // =======================================
+
+  function handleFileSelect(evt) {
+    if (evt.target.files.length > 0) {
+      extractFrom(evt.target.files[0]);
+    }
+  }
+
+  document.getElementById('files').addEventListener('change', handleFileSelect, false);
+
+
+  // =======================================
+  // DRAG'n'DROP
+  // =======================================
+
+  function handleDrop(evt) {
+    evt.stopPropagation();
+    evt.preventDefault();
+    if (evt.dataTransfer.files.length > 0) {
+      extractFrom(evt.dataTransfer.files[0]);
+    }
+  }
+
+  function handleDragOver(evt) {
+    evt.stopPropagation();
+    evt.preventDefault();
+    evt.dataTransfer.dropEffect = 'copy';
+  }
+
+  document.body.addEventListener('dragover', handleDragOver, false);
+  document.body.addEventListener('drop', handleDrop, false);
+
+
+  // =======================================
+  // binary operations
+  // =======================================
+
+  let presets = [];
+  let names = [];
+
+  function extractFrom(file) {
+    
+    /*
+    Each preset takes 350 bytes,
+    All presets in pack are concatenated
+    Bytes 6 & 7 are set according to their place in the pack, so it can be resetted to 0 when saving individual patches
+    Patch names take up 16 bytes, starting at 9.
+    */
+    let reader = new FileReader();
+    reader.onloadend = function(evt) {
+      if (evt.target.readyState == FileReader.DONE) {
+        let result = evt.target.result;
+        for(var i = 0; i < 64; ++i) {
+          let start = i * 350;
+          let preset8 = new Uint8Array(350);
+          for (let j = 0; j < 350; ++j) {
+            preset8[j] = result[start + j].charCodeAt(0);
+          }
+          //let preset = result.substring(i * 350, (i+1) * 350);
+          preset8[6] = 0;
+          preset8[7] = 0;
+          //let pb = preset.toBytes();
+          // let pn = preset.length;
+          //console.log("bytes length : ", pn)
+          presets.push(preset8);
+          names.push(result.substring(start + 9, start + 25).trim());
+        }
+        renderPresets();
+      }
+    }
+    reader.readAsBinaryString(file);
+  }
+
+let b;
+
+  // =======================================
+  // Extractor GUI
+  // =======================================
+
+  function renderPresets() {
+    let list = document.getElementById('preset-list');
+    let n = presets.length;
+    for(let i = 0; i < n; ++i) {
+      let li = document.createElement('li');
+      let a = document.createElement('a');
+      let blob = new Blob([presets[i]]);
+      let url = window.URL.createObjectURL(blob);
+      console.log(presets[i].length, blob.size);
+      a.href = url;
+      a.download = names[i] + ".syx";
+      a.innerText = names[i];
+      li.appendChild(a);
+      list.appendChild(li);
+    }
+  }
+</script>
+</body>
+</html>
